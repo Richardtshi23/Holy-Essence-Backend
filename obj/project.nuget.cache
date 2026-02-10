@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "SoBA2sp22NQ=",
+  "dgSpecHash": "yoStfvRAV58=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Richa\\source\\repos\\HolyWaters\\HolyWater.Server\\HolyWater.Server.csproj",
+  "projectFilePath": "C:\\Users\\Richa\\Source\\Repos\\HolyWaters\\HolyWater.Server\\HolyWater.Server.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Richa\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",
     "C:\\Users\\Richa\\.nuget\\packages\\azure.identity\\1.11.4\\azure.identity.1.11.4.nupkg.sha512",
