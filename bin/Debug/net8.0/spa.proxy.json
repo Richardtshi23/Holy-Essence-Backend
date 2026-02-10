@@ -3,7 +3,7 @@
 "ServerUrl": "https://localhost:4200",
 "RedirectUrl": "",
 "LaunchCommand": "npm start",
-"WorkingDirectory": "C:\\Users\\Richa\\source\\repos\\HolyWaters\\HolyWater.Server\\..\\holywater.client",
+"WorkingDirectory": "C:\\Users\\Richa\\Source\\Repos\\HolyWaters\\HolyWater.Server\\..\\holywater.client",
 "MaxTimeoutInSeconds": "120",
 "KeepRunning": "false"
 }

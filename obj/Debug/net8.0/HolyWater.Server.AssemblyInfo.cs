@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("HolyWater.Server")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d82f37576f8cde343167b4f71193d80c8caaa309")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+522543776069af8a6f44b3512c4cf2f8e7508c1b")]
 [assembly: System.Reflection.AssemblyProductAttribute("HolyWater.Server")]
 [assembly: System.Reflection.AssemblyTitleAttribute("HolyWater.Server")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

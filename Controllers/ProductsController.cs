@@ -26,6 +26,13 @@ namespace HolyWater.Server.Controllers
             return Ok(products);
         }
 
+        [HttpGet("CheckOnline")]
+        public IActionResult CheckOnline()
+        {
+           var response = new { Message = "API is online and responsive!" };
+            return Ok(response);
+        }
+
         [HttpGet("GetProducts")]
         public IActionResult GetProduct([FromQuery] int id)
         {

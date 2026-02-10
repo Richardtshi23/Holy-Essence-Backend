@@ -3,6 +3,8 @@ using HolyWater.Server.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.IO;
+using System.Threading.Tasks;
 namespace HolyWater.Server.Controllers
 {
     [Route("api/[controller]")]
@@ -25,8 +27,8 @@ namespace HolyWater.Server.Controllers
         [HttpGet("getProductById")]
         public IActionResult GetProduct([FromQuery] int id)
         {
-            var products = _productsAdminService.GetProductById(id);
-            return Ok(products);
+            var product = _productsAdminService.GetProductById(id);
+            return Ok(product);
         }
 
         [HttpDelete("deleteProductById")]
@@ -37,83 +39,98 @@ namespace HolyWater.Server.Controllers
         }
 
         [HttpPut("updateProduct-with-image")]
-        public IActionResult UpdateProduct([FromForm] ProductDTO product, [FromQuery] int id)
+        public async Task<IActionResult> UpdateProduct([FromForm] ProductDTO product, [FromQuery] int id)
         {
-            string imagePath = string.Empty;
-                
-
-            if (product.Image != null && product.Image.Length > 0)
+            try
             {
-                imagePath = CreatedImagePath(product);
+                string imagePath = string.Empty;
+
+                if (product.Image != null && product.Image.Length > 0)
+                {
+                    imagePath = await CreatedImagePathAsync(product);
+                }
+
+                var prod = new Product()
+                {
+                    Name = product.Name,
+                    Title = product.Title,
+                    Price = (decimal)product.Price,
+                    OldPrice = (decimal)product.OldPrice,
+                    Category = product.Category,
+                    Description = product.Description,
+                    InStock = product.InStock,
+                    Onsale = product.OnSale,
+                    Qty = product.Qty,
+                    Image = imagePath
+                };
+
+                _productsAdminService.UpdateProduct(prod, id);
+                var products = _productsAdminService.GetAllProducts();
+                return Ok(products);
             }
-
-            var prod = new Product()
+            catch (Exception ex)
             {
-                Name = product.Name,
-                Title = product.Title,
-                Price = (decimal)product.Price,
-                OldPrice = (decimal)product.OldPrice,
-                Category = product.Category,
-                Description = product.Description,
-                InStock = product.InStock,
-                Onsale = product.OnSale,
-                Qty = product.Qty,
-                Image = imagePath
-            };
-            _productsAdminService.UpdateProduct(prod, id);
-            var products = _productsAdminService.GetAllProducts();
-            return Ok(products);
+                Console.WriteLine($"UPDATE ERROR: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
         }
 
         [HttpPost("AddProduct-with-image")]
-        public IActionResult AddProduct([FromForm] ProductDTO product)
+        public async Task<IActionResult> AddProduct([FromForm] ProductDTO product)
         {
-            string imagePath = string.Empty;
-            if (product.Image != null && product.Image.Length > 0)
+            try
             {
-                imagePath = CreatedImagePath(product);
-            }
-
-            var prod = new Product()
-            {
-                Name = product.Name,
-                Title = product.Title,
-                Price = (decimal)product.Price,
-                OldPrice = (decimal)product.OldPrice,
-                Category = product.Category,
-                Description = product.Description,
-                InStock = product.InStock,
-                Onsale = product.OnSale,
-                Qty = product.Qty,
-                Image = imagePath
-            };
-            _productsAdminService.AddProduct(prod);
-            return Ok();
-        }
-
-        private string CreatedImagePath(ProductDTO product)
-        {
-            var uniqueFileName = string.Empty;
-            if (product.Image != null && product.Image.Length > 0)
-            {
-                // Ensure the "wwwroot/images" directory exists
-                var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images");
-                if (!Directory.Exists(uploadsFolder))
-                    Directory.CreateDirectory(uploadsFolder);
-
-                // Generate a unique name to avoid conflicts
-                uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(product.Image.FileName);
-                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                // Save the uploaded file
-                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                string imagePath = string.Empty;
+                if (product.Image != null && product.Image.Length > 0)
                 {
-                    product.Image.CopyTo(fileStream);
+                    imagePath = await CreatedImagePathAsync(product);
                 }
 
-                // Save a relative path (used in frontend)
+                var prod = new Product()
+                {
+                    Name = product.Name,
+                    Title = product.Title,
+                    Price = (decimal)product.Price,
+                    OldPrice = (decimal)product.OldPrice,
+                    Category = product.Category,
+                    Description = product.Description,
+                    InStock = product.InStock,
+                    Onsale = product.OnSale,
+                    Qty = product.Qty,
+                    Image = imagePath
+                };
 
+                _productsAdminService.AddProduct(prod);
+                return Ok(new { message = "Product added successfully", path = imagePath });
             }
+            catch (Exception ex)
+            {
+                // This ensures you see the REAL error in Render Logs
+                Console.WriteLine($"ADD PRODUCT ERROR: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        private async Task<string> CreatedImagePathAsync(ProductDTO product)
+        {
+            // Use Path.Combine for Linux/Windows compatibility
+            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images");
+
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+
+            // Generate unique filename
+            var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(product.Image.FileName);
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+            // SAVE ASYNC: Critical for Render's stability
+            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                await product.Image.CopyToAsync(fileStream);
+            }
+
             return $"/images/{uniqueFileName}";
         }
     }

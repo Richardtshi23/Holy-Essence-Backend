@@ -179,3 +179,4 @@ C:\Users\Richa\Source\Repos\HolyWaters\HolyWater.Server\obj\Debug\net8.0\HolyWat
 C:\Users\Richa\Source\Repos\HolyWaters\HolyWater.Server\obj\Debug\net8.0\ref\HolyWater.Server.dll
 C:\Users\Richa\source\repos\HolyWaters\HolyWater.Server\bin\Debug\net8.0\Npgsql.dll
 C:\Users\Richa\source\repos\HolyWaters\HolyWater.Server\bin\Debug\net8.0\Npgsql.EntityFrameworkCore.PostgreSQL.dll
+C:\Users\Richa\Source\Repos\HolyWaters\HolyWater.Server\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

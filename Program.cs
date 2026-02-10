@@ -70,8 +70,18 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAngularApp",
         policy => policy.WithOrigins("https://holy-essence-angular.onrender.com")
                         .AllowAnyHeader()
-                        .AllowAnyMethod());
+                        .AllowAnyMethod()
+                        .AllowCredentials());
 });
+
+builder.Services.Configure<IISServerOptions>(options => { options.MaxRequestBodySize = int.MaxValue; });
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(x =>
+{
+    x.ValueLengthLimit = int.MaxValue;
+    x.MultipartBodyLengthLimit = int.MaxValue;
+    x.MemoryBufferThreshold = int.MaxValue;
+});
+
 var app = builder.Build();
 
 app.UseRouting();
