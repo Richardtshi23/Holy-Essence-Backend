@@ -68,11 +68,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularApp",
-        policy => policy.AllowAnyOrigin() 
+        policy => policy.WithOrigins("https://holy-essence-angular.onrender.com")
                         .AllowAnyHeader()
                         .AllowAnyMethod());
 });
-
 var app = builder.Build();
 
 app.UseRouting();
