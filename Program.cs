@@ -13,16 +13,30 @@ var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-// --- 2. DATABASE SETUP ---
+// --- 2. DATABASE SETUP (FIXED FOR POSTGRESQL://) ---
 var rawConnString = Environment.GetEnvironmentVariable("DATABASE_URL")
                     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
-string finalConnString;
-if (rawConnString != null && rawConnString.StartsWith("postgres://"))
+string finalConnString = "";
+
+// Check for both postgres:// and postgresql:// prefixes
+if (!string.IsNullOrEmpty(rawConnString) && (rawConnString.StartsWith("postgres://") || rawConnString.StartsWith("postgresql://")))
 {
-    var databaseUri = new Uri(rawConnString);
-    var userInfo = databaseUri.UserInfo.Split(':');
-    finalConnString = $"Host={databaseUri.Host};Port={databaseUri.Port};Database={databaseUri.LocalPath.Substring(1)};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true;";
+    try
+    {
+        // Standardize prefix for Uri parser
+        var formattedUri = rawConnString.Replace("postgresql://", "postgres://");
+        var databaseUri = new Uri(formattedUri);
+
+        var userInfo = databaseUri.UserInfo.Split(':');
+        finalConnString = $"Host={databaseUri.Host};Port={databaseUri.Port};Database={databaseUri.LocalPath.Substring(1)};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true;";
+    }
+    catch (Exception ex)
+    {
+        // Fallback to raw string if parsing fails
+        Console.WriteLine($"DATABASE PARSING ERROR: {ex.Message}");
+        finalConnString = rawConnString;
+    }
 }
 else
 {
@@ -83,9 +97,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(x =>
 
 var app = builder.Build();
 
-// --- 5. MIDDLEWARE PIPELINE (CRITICAL ORDER) ---
+// --- 5. MIDDLEWARE PIPELINE (ORDER MATTERS) ---
 
-// A. Global Exception Handler (Catches 500 errors so CORS headers don't disappear)
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -98,21 +111,18 @@ else
         {
             context.Response.StatusCode = 500;
             context.Response.ContentType = "application/json";
-            // Manually inject CORS headers for failed requests
-            context.Response.Headers.Add("Access-Control-Allow-Origin", "https://holy-essence-angular.onrender.com");
-            context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
-            await context.Response.WriteAsync("{\"error\":\"Internal Server Error. Check Render logs for details.\"}");
+            // Explicitly append CORS headers so Angular can read the 500 error
+            context.Response.Headers.Append("Access-Control-Allow-Origin", "https://holy-essence-angular.onrender.com");
+            context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+            await context.Response.WriteAsync("{\"error\":\"Internal Server Error. Check Render logs.\"}");
         });
     });
 }
 
-// B. Static Files (Must be before Routing to serve /images/)
 app.UseStaticFiles();
-
-// C. Routing
 app.UseRouting();
 
-// D. CORS (Must be BEFORE Authentication/Authorization and AFTER Routing)
+// CORS must be AFTER Routing and BEFORE Auth
 app.UseCors("AllowAngularApp");
 
 if (app.Environment.IsDevelopment())
@@ -125,11 +135,9 @@ else
     app.UseHsts();
 }
 
-// E. Security
 app.UseAuthentication();
 app.UseAuthorization();
 
-// F. Mapping
 app.MapControllers();
 
 app.Run();
