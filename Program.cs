@@ -5,37 +5,34 @@ using Microsoft.EntityFrameworkCore;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Npgsql; // 1. Make sure to install: dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- RENDER DYNAMIC PORT SETUP ---
+// --- 1. RENDER DYNAMIC PORT SETUP ---
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-// --- DATABASE SETUP ---
-// Locally, it uses your appsettings. In Render, it uses the Environment Variable.
+// --- 2. DATABASE SETUP ---
 var rawConnString = Environment.GetEnvironmentVariable("DATABASE_URL")
                     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 string finalConnString;
-
-if (rawConnString!.StartsWith("postgres://"))
+if (rawConnString != null && rawConnString.StartsWith("postgres://"))
 {
-    // Convert Render's postgres:// URI to .NET Connection String format
     var databaseUri = new Uri(rawConnString);
     var userInfo = databaseUri.UserInfo.Split(':');
     finalConnString = $"Host={databaseUri.Host};Port={databaseUri.Port};Database={databaseUri.LocalPath.Substring(1)};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true;";
 }
 else
 {
-    finalConnString = rawConnString;
+    finalConnString = rawConnString ?? "";
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(finalConnString)); // 2. Changed from UseSqlServer to UseNpgsql
+    options.UseNpgsql(finalConnString));
 
-// --- THE REST OF YOUR SERVICES ---
+// --- 3. SERVICES ---
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -43,9 +40,9 @@ builder.Services.AddScoped<IProductsService, ProductsService>();
 builder.Services.AddScoped<IProductsAdminService, ProductsAdminService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
-// JWT Setup (Ensure these Env Vars are set in Render later!)
+// JWT Setup
 var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? builder.Configuration["Jwt:Key"];
-var key = Encoding.UTF8.GetBytes(jwtKey!);
+var key = Encoding.UTF8.GetBytes(jwtKey ?? "YourFallbackSecretKey_MustBeLongEnough");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
@@ -65,6 +62,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     };
 });
 
+// --- 4. CORS CONFIGURATION ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularApp",
@@ -74,6 +72,7 @@ builder.Services.AddCors(options =>
                         .AllowCredentials());
 });
 
+// Large File Upload Support
 builder.Services.Configure<IISServerOptions>(options => { options.MaxRequestBodySize = int.MaxValue; });
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(x =>
 {
@@ -84,8 +83,36 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(x =>
 
 var app = builder.Build();
 
+// --- 5. MIDDLEWARE PIPELINE (CRITICAL ORDER) ---
+
+// A. Global Exception Handler (Catches 500 errors so CORS headers don't disappear)
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = 500;
+            context.Response.ContentType = "application/json";
+            // Manually inject CORS headers for failed requests
+            context.Response.Headers.Add("Access-Control-Allow-Origin", "https://holy-essence-angular.onrender.com");
+            context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+            await context.Response.WriteAsync("{\"error\":\"Internal Server Error. Check Render logs for details.\"}");
+        });
+    });
+}
+
+// B. Static Files (Must be before Routing to serve /images/)
+app.UseStaticFiles();
+
+// C. Routing
 app.UseRouting();
-// --- MIDDLEWARE ---
+
+// D. CORS (Must be BEFORE Authentication/Authorization and AFTER Routing)
 app.UseCors("AllowAngularApp");
 
 if (app.Environment.IsDevelopment())
@@ -95,12 +122,14 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // Important: Render handles HTTPS termination. 
-    // Only use HSTS in production, avoid UseHttpsRedirection if it causes loop issues.
     app.UseHsts();
 }
 
+// E. Security
 app.UseAuthentication();
 app.UseAuthorization();
+
+// F. Mapping
 app.MapControllers();
+
 app.Run();
