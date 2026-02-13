@@ -13,13 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-// --- 2. DATABASE SETUP (FIXED FOR POSTGRESQL://) ---
+// --- 2. DATABASE SETUP (ULTIMATE ROBUST VERSION) ---
 var rawConnString = Environment.GetEnvironmentVariable("DATABASE_URL")
                     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 string finalConnString = "";
 
-// Check for both postgres:// and postgresql:// prefixes
 if (!string.IsNullOrEmpty(rawConnString) && (rawConnString.StartsWith("postgres://") || rawConnString.StartsWith("postgresql://")))
 {
     try
@@ -29,13 +28,20 @@ if (!string.IsNullOrEmpty(rawConnString) && (rawConnString.StartsWith("postgres:
         var databaseUri = new Uri(formattedUri);
 
         var userInfo = databaseUri.UserInfo.Split(':');
-        finalConnString = $"Host={databaseUri.Host};Port={databaseUri.Port};Database={databaseUri.LocalPath.Substring(1)};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true;";
+        var user = userInfo[0];
+        var password = userInfo.Length > 1 ? userInfo[1] : "";
+        var host = databaseUri.Host;
+
+        // FIX: If port is -1 (missing from string), default to 5432
+        var portNumber = databaseUri.Port <= 0 ? 5432 : databaseUri.Port;
+        var database = databaseUri.LocalPath.TrimStart('/');
+
+        finalConnString = $"Host={host};Port={portNumber};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
     }
     catch (Exception ex)
     {
-        // Fallback to raw string if parsing fails
         Console.WriteLine($"DATABASE PARSING ERROR: {ex.Message}");
-        finalConnString = rawConnString;
+        finalConnString = rawConnString; // Fallback to raw if logic fails
     }
 }
 else
@@ -97,7 +103,24 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(x =>
 
 var app = builder.Build();
 
-// --- 5. MIDDLEWARE PIPELINE (ORDER MATTERS) ---
+// --- 5. AUTOMATIC DATABASE MIGRATION ---
+// This creates your tables on Render if they don't exist yet
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        context.Database.Migrate();
+        Console.WriteLine("Database Migration Successful.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"An error occurred during migration: {ex.Message}");
+    }
+}
+
+// --- 6. MIDDLEWARE PIPELINE ---
 
 if (app.Environment.IsDevelopment())
 {
@@ -111,7 +134,6 @@ else
         {
             context.Response.StatusCode = 500;
             context.Response.ContentType = "application/json";
-            // Explicitly append CORS headers so Angular can read the 500 error
             context.Response.Headers.Append("Access-Control-Allow-Origin", "https://holy-essence-angular.onrender.com");
             context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
             await context.Response.WriteAsync("{\"error\":\"Internal Server Error. Check Render logs.\"}");
@@ -121,8 +143,6 @@ else
 
 app.UseStaticFiles();
 app.UseRouting();
-
-// CORS must be AFTER Routing and BEFORE Auth
 app.UseCors("AllowAngularApp");
 
 if (app.Environment.IsDevelopment())
@@ -137,7 +157,6 @@ else
 
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
